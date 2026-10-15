@@ -1,17 +1,20 @@
 from flask import Flask, render_template_string
 from flask_socketio import SocketIO
 import os
-from openai import OpenAI
+import google.generativeai as genai
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'gizli-anahtar'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# API anahtarını güvenli bir şekilde Render Environment ayarlarından okur
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-groq_client = OpenAI(
-    base_url="https://api.groq.com/openai/v1",
-    api_key=GROQ_API_KEY
+# Doğrudan verdiğin Gemini API anahtarı ile yapılandırma
+GEMINI_API_KEY = "AQ.Ab8RN6IM-nvNWiggjYoKY0oWC-8pUCh3cvZ-4Md_5jzAZCdCXA"
+genai.configure(api_key=GEMINI_API_KEY)
+
+# Akıllı Gemini Modeli
+bot_model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash",
+    system_instruction="Sen bu canlı mesajlaşma sunucusunun akıllı yapay zeka asistanısın. Türkçe, samimi, hızlı ve net yanıtlar verirsin."
 )
 
 sabit_mesaj = None
@@ -22,7 +25,7 @@ html_template = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Canlı Mesajlaşma Odası & Groq Bot</title>
+    <title>Canlı Mesajlaşma Odası & Gemini Bot</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; background-color: #121212; color: #fff; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; height: 100vh; box-sizing: border-box; }
@@ -35,7 +38,7 @@ html_template = """
         #chat-box { flex: 1; overflow-y: auto; border: 1px solid #333; padding: 10px; background: #2a2a2a; border-radius: 8px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 8px; }
         .message { background: #333; padding: 8px 12px; border-radius: 6px; max-width: 80%; word-break: break-word; }
         .message strong { color: #4CAF50; }
-        .message.bot strong { color: #00bcd4; }
+        .message.bot strong { color: #4285F4; }
         .controls { display: flex; flex-direction: column; gap: 8px; }
         .input-row { display: flex; gap: 8px; }
         input[type="text"] { flex: 1; padding: 10px; border-radius: 6px; border: none; background: #333; color: white; outline: none; }
@@ -45,7 +48,7 @@ html_template = """
 </head>
 <body>
 <div class="chat-container">
-    <h2>Mesajlaşma & Groq Bot</h2>
+    <h2>Mesajlaşma & Gemini Bot</h2>
     
     <div id="pinned-box">
         📌 <strong>Sabitlenen Mesaj:</strong> <span id="pinned-text"></span>
@@ -71,7 +74,7 @@ html_template = """
     });
 
     socket.on('mesaj_al', (data) => {
-        addMessage(data.kullanici, data.mesaj, data.kullanici === "Groq Bot");
+        addMessage(data.kullanici, data.mesaj, data.kullanici === "Gemini Bot");
     });
 
     socket.on('sabit_guncelle', (mesaj) => {
@@ -125,6 +128,7 @@ def handle_message(data):
     mesaj = data['mesaj']
     kullanici = data['kullanici']
 
+    # 1. Komut Kontrolleri (/sabitle ve /unsabitle)
     if mesaj.startswith('/sabitle '):
         sabit_mesaj = f"{kullanici}: {mesaj[9:]}"
         socketio.emit('sabit_guncelle', sabit_mesaj)
@@ -134,27 +138,24 @@ def handle_message(data):
         socketio.emit('sabit_guncelle', None)
         return
 
+    # Normal mesajı odaya yayınla
     socketio.emit('mesaj_al', data)
 
+    # 2. Gemini Bot Etkileşimi (@bot)
     if mesaj.lower().startswith('@bot') or '@bot' in mesaj.lower():
         soru = mesaj.replace('@bot', '').strip()
         bot_yaniti = "Şu an yanıt oluşturulamadı."
         
         try:
-            completion = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": "Sen bu canlı mesajlaşma sunucusunun hızlı ve akıllı yapay zeka asistanısın. Türkçe, samimi ve net yanıtlar verirsin."},
-                    {"role": "user", "content": soru}
-                ],
-                temperature=0.7,
-            )
-            bot_yaniti = completion.choices[0].message.content
+            response = bot_model.generate_content(soru)
+            bot_yaniti = response.text
         except Exception as e:
             bot_yaniti = f"Bir hata oluştu: {str(e)}"
         
-        socketio.emit('mesaj_al', {'kullanici': 'Groq Bot', 'mesaj': bot_yaniti})
+        # Botun yanıtını odaya gönder
+        socketio.emit('mesaj_al', {'kullanici': 'Gemini Bot', 'mesaj': bot_yaniti})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
+    
