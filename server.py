@@ -1,12 +1,25 @@
 from flask import Flask, render_template_string
 from flask_socketio import SocketIO
 import os
+import google.generativeai as genai
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'gizli-anahtar'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Sabitlenen mesajı hafızada tutmak için değişken
+# Gemini API Yapılandırması (Render çevre değişkenlerinden veya doğrudan anahtardan alabilir)
+# Not: Kendi Gemini API anahtarını buraya yazabilirsin
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "BURAYA_GEMINI_API_ANAHTARINI_YAZ")
+if GEMINI_API_KEY and GEMINI_API_KEY != "BURAYA_GEMINI_API_ANAHTARINI_YAZ":
+    genai.configure(api_key=GEMINI_API_KEY)
+    # Sunucu botu için akıllı model
+    bot_model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        system_instruction="Sen bu canlı mesajlaşma sunucusunun akıllı yapay zeka asistanısın. Kullanıcılara yardımcı olur, sunucu hakkında bilgi verir ve samimi bir şekilde sohbet edersin."
+    )
+else:
+    bot_model = None
+
 sabit_mesaj = None
 
 html_template = """
@@ -15,20 +28,20 @@ html_template = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Canlı Mesajlaşma Odası</title>
+    <title>Canlı Mesajlaşma Odası ve Bot</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; background-color: #121212; color: #fff; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; height: 100vh; box-sizing: border-box; }
         .chat-container { width: 100%; max-width: 450px; background: #1e1e1e; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.6); display: flex; flex-direction: column; height: 85vh; }
-        h2 { text-align: center; color: #4CAF50; margin-top: 0; margin-bottom: 10px; }
+        h2 { text-align: center; color: #4CAF50; margin-top: 0; margin-bottom: 10px; font-size: 20px; }
         
-        /* Sabit Mesaj Alanı */
         #pinned-box { background: #2c251e; border-left: 4px solid #ff9800; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; font-size: 14px; display: none; }
         #pinned-box strong { color: #ff9800; }
 
         #chat-box { flex: 1; overflow-y: auto; border: 1px solid #333; padding: 10px; background: #2a2a2a; border-radius: 8px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 8px; }
         .message { background: #333; padding: 8px 12px; border-radius: 6px; max-width: 80%; word-break: break-word; }
         .message strong { color: #4CAF50; }
+        .message.bot strong { color: #2196F3; }
         .controls { display: flex; flex-direction: column; gap: 8px; }
         .input-row { display: flex; gap: 8px; }
         input[type="text"] { flex: 1; padding: 10px; border-radius: 6px; border: none; background: #333; color: white; outline: none; }
@@ -38,9 +51,8 @@ html_template = """
 </head>
 <body>
 <div class="chat-container">
-    <h2>Mesajlaşma Odası</h2>
+    <h2>Mesajlaşma & Bot Odası</h2>
     
-    <!-- Sabitlenen Mesaj Kutusu -->
     <div id="pinned-box">
         📌 <strong>Sabitlenen Mesaj:</strong> <span id="pinned-text"></span>
     </div>
@@ -52,7 +64,7 @@ html_template = """
             <input type="text" id="username" placeholder="Kullanıcı adın..." value="Ayaz">
         </div>
         <div class="input-row">
-            <input type="text" id="message-input" placeholder="Mesajını yaz (/sabitle veya /unsabitle)..." onkeypress="checkEnter(event)">
+            <input type="text" id="message-input" placeholder="Mesaj yaz veya '@bot selam' de..." onkeypress="checkEnter(event)">
             <button onclick="sendMessage()">Gönder</button>
         </div>
     </div>
@@ -64,12 +76,10 @@ html_template = """
         addMessage("Sistem", "Sunucuya başarıyla bağlandın!");
     });
 
-    // Normal mesajları almak için
     socket.on('mesaj_al', (data) => {
-        addMessage(data.kullanici, data.mesaj);
+        addMessage(data.kullanici, data.mesaj, data.kullanici === "Asistan Bot");
     });
 
-    // Sabitlenen mesajı güncellemek veya kaldırmak için
     socket.on('sabit_guncelle', (mesaj) => {
         const pinnedBox = document.getElementById("pinned-box");
         const pinnedText = document.getElementById("pinned-text");
@@ -97,10 +107,11 @@ html_template = """
         if (event.key === "Enter") { sendMessage(); }
     }
 
-    function addMessage(user, msg) {
+    function addMessage(user, msg, isBot = false) {
         const chatBox = document.getElementById("chat-box");
         const msgElement = document.createElement("div");
         msgElement.classList.add("message");
+        if (isBot) msgElement.classList.add("bot");
         msgElement.innerHTML = `<strong>${user}:</strong> ${msg}`;
         chatBox.appendChild(msgElement);
         chatBox.scrollTop = chatBox.scrollHeight;
@@ -120,17 +131,33 @@ def handle_message(data):
     mesaj = data['mesaj']
     kullanici = data['kullanici']
 
-    # Eğer mesaj '/sabitle ' ile başlıyorsa
+    # 1. Komut Kontrolleri
     if mesaj.startswith('/sabitle '):
         sabit_mesaj = f"{kullanici}: {mesaj[9:]}"
         socketio.emit('sabit_guncelle', sabit_mesaj)
-    # Eğer mesaj tam olarak '/unsabitle' ise
+        return
     elif mesaj == '/unsabitle':
         sabit_mesaj = None
         socketio.emit('sabit_guncelle', None)
-    else:
-        # Normal mesajsa herkese ilet
-        socketio.emit('mesaj_al', data)
+        return
+
+    # Normal mesajı odaya yayınla
+    socketio.emit('mesaj_al', data)
+
+    # 2. Bot Etkileşimi (@bot ile başlarsa veya bot etiketlenirse)
+    if mesaj.lower().startswith('@bot') or '@bot' in mesaj.lower():
+        soru = mesaj.replace('@bot', '').strip()
+        bot_yaniti = "Şu an API anahtarı eklenmediği için yanıt veremiyorum."
+        
+        if bot_model:
+            try:
+                response = bot_model.generate_content(soru)
+                bot_yaniti = response.text
+            except Exception as e:
+                bot_yaniti = f"Bir hata oluştu: {str(e)}"
+        
+        # Botun yanıtını odaya gönder
+        socketio.emit('mesaj_al', {'kullanici': 'Asistan Bot', 'mesaj': bot_yaniti})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
