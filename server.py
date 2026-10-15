@@ -8,8 +8,8 @@ app.config['SECRET_KEY'] = 'gizli-anahtar'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Groq API Yapılandırması (Groq, OpenAI kütüphanesinin altyapısını kullanır)
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "BURAYA_GROQ_API_ANAHTARINI_YAZ")
-if GROQ_API_KEY and GROQ_API_KEY != "BURAYA_GROQ_API_ANAHTARINI_YAZ":
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
+if GROQ_API_KEY and GROQ_API_KEY != "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":
     groq_client = OpenAI(
         base_url="https://api.groq.com/openai/v1",
         api_key=GROQ_API_KEY
