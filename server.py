@@ -7,8 +7,8 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'gizli-anahtar'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Groq API Yapılandırması (Doğrudan verdiğin anahtar ile aktif)
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "Gsk_xym8LNjog6zEUNXYbO3XWGdyb3FYax12Xjb4gnUVM1BEmIo3PiZo")
+# Güncellenmiş Groq API Yapılandırması
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "Gsk_a0s76X8EgyAAK7tL1rfLWGdyb3FY89D4P8DJLqpcFgFuUaRvUk19")
 groq_client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
     api_key=GROQ_API_KEY
