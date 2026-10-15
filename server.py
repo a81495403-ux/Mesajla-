@@ -7,15 +7,12 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'gizli-anahtar'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Groq API Yapılandırması (Groq, OpenAI kütüphanesinin altyapısını kullanır)
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
-if GROQ_API_KEY and GROQ_API_KEY != "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":
-    groq_client = OpenAI(
-        base_url="https://api.groq.com/openai/v1",
-        api_key=GROQ_API_KEY
-    )
-else:
-    groq_client = None
+# Groq API Yapılandırması (Doğrudan verdiğin anahtar ile aktif)
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "Gsk_xym8LNjog6zEUNXYbO3XWGdyb3FYax12Xjb4gnUVM1BEmIo3PiZo")
+groq_client = OpenAI(
+    base_url="https://api.groq.com/openai/v1",
+    api_key=GROQ_API_KEY
+)
 
 sabit_mesaj = None
 
@@ -128,7 +125,7 @@ def handle_message(data):
     mesaj = data['mesaj']
     kullanici = data['kullanici']
 
-    # 1. Komut Kontrolleri
+    # 1. Komut Kontrolleri (/sabitle ve /unsabitle)
     if mesaj.startswith('/sabitle '):
         sabit_mesaj = f"{kullanici}: {mesaj[9:]}"
         socketio.emit('sabit_guncelle', sabit_mesaj)
@@ -141,24 +138,23 @@ def handle_message(data):
     # Normal mesajı odaya yayınla
     socketio.emit('mesaj_al', data)
 
-    # 2. Groq Bot Etkileşimi
+    # 2. Groq Bot Etkileşimi (@bot)
     if mesaj.lower().startswith('@bot') or '@bot' in mesaj.lower():
         soru = mesaj.replace('@bot', '').strip()
-        bot_yaniti = "Şu an Groq API anahtarı eklenmediği için yanıt veremiyorum."
+        bot_yaniti = "Şu an yanıt oluşturulamadı."
         
-        if groq_client:
-            try:
-                completion = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {"role": "system", "content": "Sen bu canlı mesajlaşma sunucusunun hızlı ve akıllı yapay zeka asistanısın. Türkçe yanıt verirsin."},
-                        {"role": "user", "content": soru}
-                    ],
-                    temperature=0.7,
-                )
-                bot_yaniti = completion.choices[0].message.content
-            except Exception as e:
-                bot_yaniti = f"Bir hata oluştu: {str(e)}"
+        try:
+            completion = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": "Sen bu canlı mesajlaşma sunucusunun hızlı ve akıllı yapay zeka asistanısın. Türkçe, samimi ve net yanıtlar verirsin."},
+                    {"role": "user", "content": soru}
+                ],
+                temperature=0.7,
+            )
+            bot_yaniti = completion.choices[0].message.content
+        except Exception as e:
+            bot_yaniti = f"Bir hata oluştu: {str(e)}"
         
         # Botun yanıtını odaya gönder
         socketio.emit('mesaj_al', {'kullanici': 'Groq Bot', 'mesaj': bot_yaniti})
