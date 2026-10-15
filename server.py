@@ -6,7 +6,9 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'gizli-anahtar'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Doğrudan tarayıcıda açılacak sohbet arayüzü
+# Sabitlenen mesajı hafızada tutmak için değişken
+sabit_mesaj = None
+
 html_template = """
 <!DOCTYPE html>
 <html lang="tr">
@@ -17,8 +19,13 @@ html_template = """
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; background-color: #121212; color: #fff; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; height: 100vh; box-sizing: border-box; }
-        .chat-container { width: 100%; max-width: 450px; background: #1e1e1e; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.6); display: flex; flex-direction: column; height: 80vh; }
-        h2 { text-align: center; color: #4CAF50; margin-top: 0; margin-bottom: 15px; }
+        .chat-container { width: 100%; max-width: 450px; background: #1e1e1e; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.6); display: flex; flex-direction: column; height: 85vh; }
+        h2 { text-align: center; color: #4CAF50; margin-top: 0; margin-bottom: 10px; }
+        
+        /* Sabit Mesaj Alanı */
+        #pinned-box { background: #2c251e; border-left: 4px solid #ff9800; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; font-size: 14px; display: none; }
+        #pinned-box strong { color: #ff9800; }
+
         #chat-box { flex: 1; overflow-y: auto; border: 1px solid #333; padding: 10px; background: #2a2a2a; border-radius: 8px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 8px; }
         .message { background: #333; padding: 8px 12px; border-radius: 6px; max-width: 80%; word-break: break-word; }
         .message strong { color: #4CAF50; }
@@ -32,26 +39,46 @@ html_template = """
 <body>
 <div class="chat-container">
     <h2>Mesajlaşma Odası</h2>
+    
+    <!-- Sabitlenen Mesaj Kutusu -->
+    <div id="pinned-box">
+        📌 <strong>Sabitlenen Mesaj:</strong> <span id="pinned-text"></span>
+    </div>
+
     <div id="chat-box"></div>
+    
     <div class="controls">
         <div class="input-row">
             <input type="text" id="username" placeholder="Kullanıcı adın..." value="Ayaz">
         </div>
         <div class="input-row">
-            <input type="text" id="message-input" placeholder="Mesajını yaz..." onkeypress="checkEnter(event)">
+            <input type="text" id="message-input" placeholder="Mesajını yaz (/sabitle veya /unsabitle)..." onkeypress="checkEnter(event)">
             <button onclick="sendMessage()">Gönder</button>
         </div>
     </div>
 </div>
 <script>
-    const socket = io(); // Kendi sunucu adresine otomatik bağlanır
+    const socket = io();
 
     socket.on('connect', () => {
         addMessage("Sistem", "Sunucuya başarıyla bağlandın!");
     });
 
+    // Normal mesajları almak için
     socket.on('mesaj_al', (data) => {
         addMessage(data.kullanici, data.mesaj);
+    });
+
+    // Sabitlenen mesajı güncellemek veya kaldırmak için
+    socket.on('sabit_guncelle', (mesaj) => {
+        const pinnedBox = document.getElementById("pinned-box");
+        const pinnedText = document.getElementById("pinned-text");
+        if (mesaj) {
+            pinnedText.innerText = mesaj;
+            pinnedBox.style.display = "block";
+        } else {
+            pinnedBox.style.display = "none";
+        }
     });
 
     function sendMessage() {
@@ -89,7 +116,21 @@ def index():
 
 @socketio.on('mesaj_gonder')
 def handle_message(data):
-    socketio.emit('mesaj_al', data)
+    global sabit_mesaj
+    mesaj = data['mesaj']
+    kullanici = data['kullanici']
+
+    # Eğer mesaj '/sabitle ' ile başlıyorsa
+    if mesaj.startswith('/sabitle '):
+        sabit_mesaj = f"{kullanici}: {mesaj[9:]}"
+        socketio.emit('sabit_guncelle', sabit_mesaj)
+    # Eğer mesaj tam olarak '/unsabitle' ise
+    elif mesaj == '/unsabitle':
+        sabit_mesaj = None
+        socketio.emit('sabit_guncelle', None)
+    else:
+        # Normal mesajsa herkese ilet
+        socketio.emit('mesaj_al', data)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
