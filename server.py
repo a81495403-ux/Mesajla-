@@ -7,8 +7,8 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'gizli-anahtar'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Güncellenmiş Groq API Yapılandırması
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "Gsk_a0s76X8EgyAAK7tL1rfLWGdyb3FY89D4P8DJLqpcFgFuUaRvUk19")
+# API anahtarını güvenli bir şekilde Render Environment ayarlarından okur
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 groq_client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
     api_key=GROQ_API_KEY
@@ -125,7 +125,6 @@ def handle_message(data):
     mesaj = data['mesaj']
     kullanici = data['kullanici']
 
-    # 1. Komut Kontrolleri (/sabitle ve /unsabitle)
     if mesaj.startswith('/sabitle '):
         sabit_mesaj = f"{kullanici}: {mesaj[9:]}"
         socketio.emit('sabit_guncelle', sabit_mesaj)
@@ -135,10 +134,8 @@ def handle_message(data):
         socketio.emit('sabit_guncelle', None)
         return
 
-    # Normal mesajı odaya yayınla
     socketio.emit('mesaj_al', data)
 
-    # 2. Groq Bot Etkileşimi (@bot)
     if mesaj.lower().startswith('@bot') or '@bot' in mesaj.lower():
         soru = mesaj.replace('@bot', '').strip()
         bot_yaniti = "Şu an yanıt oluşturulamadı."
@@ -156,7 +153,6 @@ def handle_message(data):
         except Exception as e:
             bot_yaniti = f"Bir hata oluştu: {str(e)}"
         
-        # Botun yanıtını odaya gönder
         socketio.emit('mesaj_al', {'kullanici': 'Groq Bot', 'mesaj': bot_yaniti})
 
 if __name__ == '__main__':
