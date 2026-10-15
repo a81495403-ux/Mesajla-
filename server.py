@@ -7,7 +7,6 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'gizli-anahtar'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# OpenAI API Yapılandırması
 OPENAI_API_KEY = "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"
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -55,8 +54,8 @@ html_template = """
             <input type="text" id="username" placeholder="Kullanıcı adın..." value="Ayaz">
         </div>
         <div class="input-row">
-            <input type="text" id="message-input" placeholder="Mesaj yaz veya '@bot selam' de..." onkeypress="checkEnter(event)">
-            <button onclick="sendMessage()">Gönder</button>
+            <input type="text" id="message-input" placeholder="Mesaj yaz veya '@bot selam' de..." autofocus>
+            <button id="send-btn">Gönder</button>
         </div>
     </div>
 </div>
@@ -89,13 +88,19 @@ html_template = """
         const mesaj = messageInput.value.trim();
 
         if (mesaj !== "" && kullanici !== "") {
-            socket.emit('mesaj
+            socket.emit('mesaj_gonder', { kullanici: kullanici, mesaj: mesaj });
+            messageInput.value = "";
+            messageInput.focus();
         }
     }
 
-    function checkEnter(event) {
-        if (event.key === "Enter") { sendMessage(); }
-    }
+    document.getElementById("send-btn").addEventListener("click", sendMessage);
+
+    document.getElementById("message-input").addEventListener("keypress", function(event) {
+        if (event.key === "Enter") {
+            sendMessage();
+        }
+    });
 
     function addMessage(user, msg, isBot = false) {
         const chatBox = document.getElementById("chat-box");
@@ -118,10 +123,9 @@ def index():
 @socketio.on('mesaj_gonder')
 def handle_message(data):
     global sabit_mesaj
-    mesaj = data['mesaj']
-    kullanici = data['kullanici']
+    mesaj = data.get('mesaj', '')
+    kullanici = data.get('kullanici', 'Misafir')
 
-    # 1. Komut Kontrolleri (/sabitle ve /unsabitle)
     if mesaj.startswith('/sabitle '):
         sabit_mesaj = f"{kullanici}: {mesaj[9:]}"
         socketio.emit('sabit_guncelle', sabit_mesaj)
@@ -131,17 +135,15 @@ def handle_message(data):
         socketio.emit('sabit_guncelle', None)
         return
 
-    # Normal mesajı odaya yayınla
     socketio.emit('mesaj_al', data)
 
-    # 2. OpenAI Bot Etkileşimi (@bot)
     if mesaj.lower().startswith('@bot') or '@bot' in mesaj.lower():
         soru = mesaj.replace('@bot', '').strip()
         bot_yaniti = "Şu an yanıt oluşturulamadı."
         
         try:
             completion = openai_client.chat.completions.create(
-                model="gpt-4o-mini",  # Hızlı ve verimli model
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "Sen bu canlı mesajlaşma sunucusunun akıllı yapay zeka asistanısın. Türkçe, samimi ve net yanıtlar verirsin."},
                     {"role": "user", "content": soru}
@@ -152,7 +154,6 @@ def handle_message(data):
         except Exception as e:
             bot_yaniti = f"Bir hata oluştu: {str(e)}"
         
-        # Botun yanıtını odaya gönder
         socketio.emit('mesaj_al', {'kullanici': 'OpenAI Bot', 'mesaj': bot_yaniti})
 
 if __name__ == '__main__':
