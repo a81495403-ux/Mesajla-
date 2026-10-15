@@ -22,8 +22,9 @@ def handle_message(data):
 @socketio.on('disconnect')
 def handle_disconnect():
     print("Bir kullanıcı ayrıldı.")
-
-if __name__ == '__main__':
-    # Render'ın atayacağı portu otomatik yakalaması için:
+    
+    if __name__ == '__main__':
+    import os
     port = int(os.environ.get("PORT", 5000))
     socketio.run(app, host='0.0.0.0', port=port)
+    
