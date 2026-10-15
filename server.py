@@ -1,4 +1,4 @@
-rom flask import Flask, render_template_string
+from flask import Flask, render_template_string
 from flask_socketio import SocketIO
 import os
 from openai import OpenAI
