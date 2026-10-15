@@ -8,7 +8,7 @@ app.config['SECRET_KEY'] = 'gizli-anahtar'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # OpenAI API Yapılandırması
-OPENAI_API_KEY = "Sk-proj-pfEHMEFTi5FPyCr_i2ciBFOLxBTZCRGW97v6e1B91G0YZWDdB2xx_fnBz3CgdY68GG-tACQuPdT3BlbkFJmLMk54ZxUi3g06QoQouPl61BoDkKh_kVlWOyobOARqtiIPJwzY3DPXVv5SMDAqp4IKl2ZYYNAA"
+OPENAI_API_KEY = "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"
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 sabit_mesaj = None
