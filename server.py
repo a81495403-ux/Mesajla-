@@ -7,12 +7,9 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'gizli-anahtar'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# AIMLAPI Yapılandırması
-AIML_API_KEY = "01b4602e97c60adf6d729a595e153615"
-aiml_client = OpenAI(
-    base_url="https://api.aimlapi.com/v1",
-    api_key=AIML_API_KEY
-)
+# OpenAI API Yapılandırması
+OPENAI_API_KEY = "Sk-proj-pfEHMEFTi5FPyCr_i2ciBFOLxBTZCRGW97v6e1B91G0YZWDdB2xx_fnBz3CgdY68GG-tACQuPdT3BlbkFJmLMk54ZxUi3g06QoQouPl61BoDkKh_kVlWOyobOARqtiIPJwzY3DPXVv5SMDAqp4IKl2ZYYNAA"
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 sabit_mesaj = None
 
@@ -22,7 +19,7 @@ html_template = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Canlı Mesajlaşma Odası & AIML Bot</title>
+    <title>Canlı Mesajlaşma Odası & OpenAI Bot</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; background-color: #121212; color: #fff; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; height: 100vh; box-sizing: border-box; }
@@ -35,7 +32,7 @@ html_template = """
         #chat-box { flex: 1; overflow-y: auto; border: 1px solid #333; padding: 10px; background: #2a2a2a; border-radius: 8px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 8px; }
         .message { background: #333; padding: 8px 12px; border-radius: 6px; max-width: 80%; word-break: break-word; }
         .message strong { color: #4CAF50; }
-        .message.bot strong { color: #ff5722; }
+        .message.bot strong { color: #10a37f; }
         .controls { display: flex; flex-direction: column; gap: 8px; }
         .input-row { display: flex; gap: 8px; }
         input[type="text"] { flex: 1; padding: 10px; border-radius: 6px; border: none; background: #333; color: white; outline: none; }
@@ -45,7 +42,7 @@ html_template = """
 </head>
 <body>
 <div class="chat-container">
-    <h2>Mesajlaşma & AIML Bot</h2>
+    <h2>Mesajlaşma & OpenAI Bot</h2>
     
     <div id="pinned-box">
         📌 <strong>Sabitlenen Mesaj:</strong> <span id="pinned-text"></span>
@@ -71,7 +68,7 @@ html_template = """
     });
 
     socket.on('mesaj_al', (data) => {
-        addMessage(data.kullanici, data.mesaj, data.kullanici === "AIML Bot");
+        addMessage(data.kullanici, data.mesaj, data.kullanici === "OpenAI Bot");
     });
 
     socket.on('sabit_guncelle', (mesaj) => {
@@ -92,8 +89,7 @@ html_template = """
         const mesaj = messageInput.value.trim();
 
         if (mesaj !== "" && kullanici !== "") {
-            socket.emit('mesaj_gonder', { kullanici: kullanici, mesaj: mesaj });
-            messageInput.value = "";
+            socket.emit('mesaj
         }
     }
 
@@ -138,14 +134,14 @@ def handle_message(data):
     # Normal mesajı odaya yayınla
     socketio.emit('mesaj_al', data)
 
-    # 2. AIML Bot Etkileşimi (@bot)
+    # 2. OpenAI Bot Etkileşimi (@bot)
     if mesaj.lower().startswith('@bot') or '@bot' in mesaj.lower():
         soru = mesaj.replace('@bot', '').strip()
         bot_yaniti = "Şu an yanıt oluşturulamadı."
         
         try:
-            completion = aiml_client.chat.completions.create(
-                model="gpt-4o",  # AIMLAPI üzerinde desteklenen güçlü modellerden biri
+            completion = openai_client.chat.completions.create(
+                model="gpt-4o-mini",  # Hızlı ve verimli model
                 messages=[
                     {"role": "system", "content": "Sen bu canlı mesajlaşma sunucusunun akıllı yapay zeka asistanısın. Türkçe, samimi ve net yanıtlar verirsin."},
                     {"role": "user", "content": soru}
@@ -157,7 +153,7 @@ def handle_message(data):
             bot_yaniti = f"Bir hata oluştu: {str(e)}"
         
         # Botun yanıtını odaya gönder
-        socketio.emit('mesaj_al', {'kullanici': 'AIML Bot', 'mesaj': bot_yaniti})
+        socketio.emit('mesaj_al', {'kullanici': 'OpenAI Bot', 'mesaj': bot_yaniti})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
